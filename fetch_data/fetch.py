@@ -4,6 +4,7 @@ import pandas as pd
 import logging
 import multiprocessing as mp
 from datetime import datetime, timedelta
+import dateutil.parser
 import os
 
 
@@ -99,19 +100,41 @@ def parallel_fetch_news(search_topic,start_date, end_date):
     out = [output.get() for p in processes]
     return pd.concat(out, ignore_index=True)
 
-
-if __name__ == "__main__":
+def main():
+    os.makedirs("./.temp", exist_ok=True)
+    STOCK_DATA_FILE_PATH = ".temp/stock_data.csv"
+    NEWS_ARTICLE_FILE_PATH = ".temp/organized_news.csv"
     logging.basicConfig(filename='fetch.log', encoding='utf-8', level=logging.DEBUG)
-    logging.info("Starting script to get Apple stock data")
-    stock_data = get_ticker_data("AAPL")
-    logging.info("Retrieved Apple ticker data")
-    logging.debug("Retrieved Stock Data")
+    if not os.path.isfile(STOCK_DATA_FILE_PATH):
+        logging.info("Starting script to get Apple stock data")
+        stock_data = get_ticker_data("AAPL")
+        logging.info("Retrieved Apple ticker data")
+        stock_data.to_csv(STOCK_DATA_FILE_PATH)
+        logging.debug("Retrieved Stock Data")
+    else:
+        stock_data = pd.read_csv(STOCK_DATA_FILE_PATH)
+        stock_data["Date"] = pd.to_datetime(stock_data["Date"])
+    
     logging.debug(stock_data)
     start_date, end_date = stock_data["Date"].min(), stock_data["Date"].max()
-    logging.info("Starting to fetch the news, this will take a while")
-    news = parallel_fetch_news("Apple", start_date, end_date)
-    logging.debug("Fetched news data")
-    news.to_csv()
-    os.makedirs("./.temp", exist_ok=True)
-    news.to_csv(".temp/organized_news.csv",)
+
+    
+    if os.path.isfile(NEWS_ARTICLE_FILE_PATH):
+        logging.info("Building on existing news csv")
+        existing_news = pd.read_csv(NEWS_ARTICLE_FILE_PATH)
+        existing_news.drop([existing_news.columns[0]], axis=1, inplace=True)
+        min_date = dateutil.parser.parse(existing_news["published date"].min()).replace(tzinfo=None)
+        start_date = max(start_date.to_pydatetime(), min_date)
+    else:
+        existing_news = pd.DataFrame()
+    if start_date >= end_date:
+        logging.info("No dates left to crawl")
+        return None
+    logging.info(f"Crawling from {start_date} to {end_date}")
+    update = fetch_news("Apple", start_date, start_date+timedelta(days=10))
+    new_news = pd.concat([existing_news, update],ignore_index=True)
+    new_news.to_csv(NEWS_ARTICLE_FILE_PATH)
     logging.info("Done with Script")
+
+if __name__ == "__main__":
+    main()
