@@ -123,15 +123,16 @@ def main():
         logging.info("Building on existing news csv")
         existing_news = pd.read_csv(NEWS_ARTICLE_FILE_PATH)
         existing_news.drop([existing_news.columns[0]], axis=1, inplace=True)
-        min_date = dateutil.parser.parse(existing_news["published date"].min()).replace(tzinfo=None)
+        min_date = dateutil.parser.parse(existing_news["published date"].max()).replace(tzinfo=None)
         start_date = max(start_date.to_pydatetime(), min_date)
     else:
         existing_news = pd.DataFrame()
     if start_date >= end_date:
         logging.info("No dates left to crawl")
         return None
+    end_date = start_date+timedelta(days=10)
     logging.info(f"Crawling from {start_date} to {end_date}")
-    update = fetch_news("Apple", start_date, start_date+timedelta(days=10))
+    update = fetch_news("Apple", start_date, end_date)
     new_news = pd.concat([existing_news, update],ignore_index=True)
     new_news.to_csv(NEWS_ARTICLE_FILE_PATH)
     logging.info("Done with Script")
