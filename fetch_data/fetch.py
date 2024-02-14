@@ -130,12 +130,15 @@ def main():
     if start_date >= end_date:
         logging.info("No dates left to crawl")
         return None
-    end_date = start_date+timedelta(days=10)
-    logging.info(f"Crawling from {start_date} to {end_date}")
-    update = fetch_news("Apple", start_date, end_date)
-    new_news = pd.concat([existing_news, update],ignore_index=True)
-    new_news.to_csv(NEWS_ARTICLE_FILE_PATH)
-    logging.info("Done with Script")
+    while True:
+        end_date = start_date+timedelta(days=10)
+        logging.info(f"Crawling from {start_date} to {end_date}")
+        update = fetch_news("Apple", start_date, end_date)
+        new_news = pd.concat([existing_news, update],ignore_index=True)
+        new_news.to_csv(NEWS_ARTICLE_FILE_PATH)
+        existing_news = new_news
+        start_date = end_date
+        logging.info("Done with Script")
 
 if __name__ == "__main__":
     main()
