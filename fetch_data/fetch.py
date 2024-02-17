@@ -70,7 +70,7 @@ def list_bulk_delete(indices, list):
     
 
 def fetch_news(search_topic,start_date, end_date):
-    google_news = GNews(language = "en", max_results=1000, start_date=(start_date.year, start_date.month, start_date.day), end_date=(end_date.year, end_date.month, end_date.day))
+    google_news = GNews(language = "en", max_results=100, start_date=(start_date.year, start_date.month, start_date.day), end_date=(end_date.year, end_date.month, end_date.day))
     apple_news = google_news.get_news(search_topic)
 
     indices_to_delete = []
@@ -89,7 +89,7 @@ def parallel_fetch_news_runner(search_topic, start, end, queue):
     queue.put(fetch_news(search_topic, start, end))
 
 def parallel_fetch_news(search_topic,start_date, end_date):
-    n = 100
+    n = 10
     output = mp.Queue()
     processes = [mp.Process(target=parallel_fetch_news_runner, args = (search_topic, start, end, output)) for start, end in partition_date_range(start_date, end_date, n)]
     for p in processes:
@@ -101,9 +101,9 @@ def parallel_fetch_news(search_topic,start_date, end_date):
     return pd.concat(out, ignore_index=True)
 
 def main():
-    os.makedirs("./.temp", exist_ok=True)
-    STOCK_DATA_FILE_PATH = ".temp/stock_data.csv"
-    NEWS_ARTICLE_FILE_PATH = ".temp/organized_news.csv"
+    os.makedirs("./.data", exist_ok=True)
+    STOCK_DATA_FILE_PATH = ".data/stock_data.csv"
+    NEWS_ARTICLE_FILE_PATH = ".data/organized_news.csv"
     logging.basicConfig(filename='fetch.log', encoding='utf-8', level=logging.DEBUG)
     if not os.path.isfile(STOCK_DATA_FILE_PATH):
         logging.info("Starting script to get Apple stock data")
@@ -123,21 +123,24 @@ def main():
         logging.info("Building on existing news csv")
         existing_news = pd.read_csv(NEWS_ARTICLE_FILE_PATH)
         existing_news.drop([existing_news.columns[0]], axis=1, inplace=True)
-        min_date = dateutil.parser.parse(existing_news["published date"].max()).replace(tzinfo=None)
+        #For some reason min gives max date. #TODO: Explore why
+        min_date = dateutil.parser.parse(existing_news["published date"].min()).replace(tzinfo=None)
+        logging.info(f"Last Date We Have News From is {min_date}")
         start_date = max(start_date.to_pydatetime(), min_date)
     else:
         existing_news = pd.DataFrame()
-    if start_date >= end_date:
-        logging.info("No dates left to crawl")
-        return None
+    
     while True:
-        end_date = start_date+timedelta(days=10)
-        logging.info(f"Crawling from {start_date} to {end_date}")
-        update = fetch_news("Apple", start_date, end_date)
+        if start_date >= end_date:
+            logging.info("No dates left to crawl")
+            return None
+        crawl_end = start_date+timedelta(days=7)
+        logging.info(f"Crawling from {start_date} to {crawl_end}")
+        update = parallel_fetch_news("Apple", start_date, crawl_end)
         new_news = pd.concat([existing_news, update],ignore_index=True)
         new_news.to_csv(NEWS_ARTICLE_FILE_PATH)
         existing_news = new_news
-        start_date = end_date
+        start_date = crawl_end
         logging.info("Done with Script")
 
 if __name__ == "__main__":
