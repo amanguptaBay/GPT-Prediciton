@@ -9,10 +9,9 @@ import dateutil.parser
 import os
 import collections
 
-def get_ticker_data(ticker):
+def get_ticker_data(ticker, start_date, end_date):
     #Get Company stock data and ensure its not corrupted
-    stock_data = yf.Ticker(ticker).history(period = "5y")
-    assert not stock_data.empty
+    stock_data = yf.Tickers(ticker).history(period = "1d", start=start_date, end=end_date)
 
     #Cleans up the date column
     stock_data = stock_data.reset_index()
@@ -90,8 +89,9 @@ def main():
     logging.basicConfig(filename='fetch.log', encoding='utf-8', level=logging.DEBUG)
     if not os.path.isfile(STOCK_DATA_FILE_PATH):
         logging.info("Starting script to get Apple stock data")
-        stock_data = get_ticker_data("AAPL")
-        logging.info("Retrieved Apple ticker data")
+        start_date, end_date = "2017-6-12", "2023-6-4"
+        stock_data = get_ticker_data("AAPL MSFT AMZN GOOGL ^NDX ^GSPC", start_date, end_date)
+        logging.info("Retrieved ticker data")
         stock_data.to_csv(STOCK_DATA_FILE_PATH)
         logging.debug("Retrieved Stock Data")
     else:
@@ -99,7 +99,7 @@ def main():
         stock_data["Date"] = pd.to_datetime(stock_data["Date"])
     
     logging.debug(stock_data)
-    crawl_start, crawl_end = stock_data["Date"].min().date(), stock_data["Date"].max().date()
+    crawl_start, crawl_end = stock_data["Date"].min(), stock_data["Date"].max()
     if os.path.isfile(NEWS_ARTICLE_FILE_PATH):
         logging.info("Building on existing news csv")
         existing_news = pd.read_csv(NEWS_ARTICLE_FILE_PATH)
