@@ -54,7 +54,7 @@ def parallel_fetch_news(search_topic: str, bins:typing.List[typing.Tuple[datetim
     for p in processes:
         p.start()
     for p in processes:
-        p.join(10)
+        p.join(1)
     out = [output.get() for p in processes]
     return pd.concat(out, ignore_index=True)
 
@@ -84,40 +84,41 @@ def batched(iter, batch_size):
 
 def main():
     os.makedirs("./.data", exist_ok=True)
-    STOCK_DATA_FILE_PATH = ".data/stock_data.csv"
-    NEWS_ARTICLE_FILE_PATH = ".data/organized_news.csv"
+    STOCK_DATA_FILE_PATH = ".data/stock_data.pickle"
+    NEWS_ARTICLE_FILE_PATH = ".data/organized_news.pickle"
     logging.basicConfig(filename='fetch.log', encoding='utf-8', level=logging.DEBUG)
     if not os.path.isfile(STOCK_DATA_FILE_PATH):
         logging.info("Starting script to get Apple stock data")
         start_date, end_date = "2017-6-12", "2023-6-4"
         stock_data = get_ticker_data("AAPL MSFT AMZN GOOGL ^NDX ^GSPC", start_date, end_date)
         logging.info("Retrieved ticker data")
-        stock_data.to_csv(STOCK_DATA_FILE_PATH)
+        stock_data.to_pickle(STOCK_DATA_FILE_PATH)
         logging.debug("Retrieved Stock Data")
     else:
-        stock_data = pd.read_csv(STOCK_DATA_FILE_PATH)
+        stock_data = pd.read_pickle(STOCK_DATA_FILE_PATH)
         stock_data["Date"] = pd.to_datetime(stock_data["Date"])
     
     logging.debug(stock_data)
     crawl_start, crawl_end = stock_data["Date"].min(), stock_data["Date"].max()
     if os.path.isfile(NEWS_ARTICLE_FILE_PATH):
         logging.info("Building on existing news csv")
-        existing_news = pd.read_csv(NEWS_ARTICLE_FILE_PATH)
-        existing_news.drop([existing_news.columns[0]], axis=1, inplace=True)
-        existing_news["published date"] = existing_news["published date"].apply(lambda x: dateutil.parser.parse(x)).dt.date
-        #For some reason min gives max date. #TODO: Explore why
+        existing_news = pd.read_pickle(NEWS_ARTICLE_FILE_PATH)
+        existing_news["published date"] = existing_news["published date"].apply(dateutil.parser.parse)
         last_date_with_news = max(existing_news["published date"])
         logging.info(f"Last Date We Have News From is {last_date_with_news}")
-        crawl_start = max(last_date_with_news, crawl_start)
+        crawl_start = max(last_date_with_news.tz_localize(None), crawl_start)
     else:
         existing_news = pd.DataFrame()
 
     for binSet in batched(split_weeks(crawl_start, crawl_end), 20):
-        update = parallel_fetch_news(search_topic="AAPL", bins = binSet, results_per_bin=5)
-        new_news = pd.concat([existing_news, update],ignore_index=True)
-        logging.info(f"Wrote batch from {binSet[0][0]} to {binSet[-1][-1]} to file system")
-        new_news.to_csv(NEWS_ARTICLE_FILE_PATH)
-        existing_news = new_news
+        for topic in stock_data["Close"].columns:
+            update = parallel_fetch_news(search_topic=topic, bins = binSet, results_per_bin=5)
+            update["Topic"] = topic
+            update["published date"] = update["published date"].apply(dateutil.parser.parse)
+            new_news = pd.concat([existing_news, update],ignore_index=True)
+            logging.info(f"Wrote batch from {binSet[0][0]} to {binSet[-1][-1]} to file system")
+            new_news.to_pickle(NEWS_ARTICLE_FILE_PATH)
+            existing_news = new_news
     return existing_news
 
 if __name__ == "__main__":
