@@ -103,7 +103,6 @@ def main():
     if os.path.isfile(NEWS_ARTICLE_FILE_PATH):
         logging.info("Building on existing news csv")
         existing_news = pd.read_pickle(NEWS_ARTICLE_FILE_PATH)
-        existing_news["published date"] = existing_news["published date"].apply(dateutil.parser.parse)
         last_date_with_news = max(existing_news["published date"])
         logging.info(f"Last Date We Have News From is {last_date_with_news}")
         crawl_start = max(last_date_with_news.tz_localize(None), crawl_start)
