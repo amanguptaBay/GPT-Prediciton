@@ -89,7 +89,7 @@ def main():
     logging.basicConfig(filename='fetch.log', encoding='utf-8', level=logging.DEBUG)
     if not os.path.isfile(STOCK_DATA_FILE_PATH):
         logging.info("Starting script to get Apple stock data")
-        start_date, end_date = "2017-6-12", "2023-6-4"
+        start_date, end_date = os.environ["start_date"], os.environ["end_date"]
         stock_data = get_ticker_data("AAPL MSFT AMZN GOOGL ^NDX ^GSPC", start_date, end_date)
         logging.info("Retrieved ticker data")
         stock_data.to_pickle(STOCK_DATA_FILE_PATH)
